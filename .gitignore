@@ -1,0 +1,10 @@
+# ---> Scala
+*.log
+*.iml
+
+# sbt specific
+out/
+.idea/
+dist/*
+target/
+
