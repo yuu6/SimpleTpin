@@ -2,6 +2,9 @@ package lite.main
 
 import java.math.BigDecimal
 
+import _root_.wwd.entity.impl.InfluEdgeAttr
+import _root_.wwd.entity.impl.InfluVertexAttr
+import _root_.wwd.strategy.impl.VNFeature
 import lite.entity.EdgeAttr
 import lite.entity.impl.{InfluEdgeAttr, InfluVertexAttr}
 import lite.utils.{OracleTools, HdfsTools}
@@ -28,6 +31,11 @@ case class FuzzEdgeAttr(val influ: Double) extends EdgeAttr
 case class Correlation(vid: Long, wtbz: Integer, xyfz: Integer, nais: Double,
                        nwais0: Double, nwais1: Double, nwais2: Double, nwais3: Double, nwais4: Double, nwais5: Double,
                        nwais6: Double, nwais7: Double, nwais8: Double, nwais9: Double, nwais10: Double, ycsl: Double, dfsl: Integer, qysl: Integer)
+
+case class VNFeature(var vid: Long, var pte: Double, var wtbz: Integer, var nwapte: Double,
+                     var n1: Integer, var n2: Integer, var n3: Integer, var n4: Integer, var n5: Integer,
+                     var n6: Integer, var n7: Integer, var n8: Integer, var n9: Integer, var n10: Integer,
+                     var n11: Integer, var cluster: Double)
 
 class InfluenceMeasure(ignoreIL: Boolean = false, forceReAdjust: Boolean = false,
                        var forceReComputePath: Boolean = false
@@ -322,6 +330,87 @@ class InfluenceMeasure(ignoreIL: Boolean = false, forceReAdjust: Boolean = false
     val pr = assembler.transform(balanced)
     val Row(coeff1: Matrix) = CorrelationStat.corr(pr, "features").head
     coeff1
+  }
+  /**
+    * Author:weiwenda
+    * Description:收集13项融合因子
+    * Date:17:07 2018/4/13
+    */
+  def computeVNFeature(influTpin: Graph[InfluVertexAttr, InfluEdgeAttr],
+                       fullTpin: Graph[InfluVertexAttr, Seq[Double]],
+                       direction: EdgeDirection = EdgeDirection.Out) = {
+    val sqlContext = session
+    import sqlContext.implicits._
+    val tpin = ConstructInfn._removeIsolate(fullTpin).
+      outerJoinVertices(_getScore()) {
+        case (vid, attr, opt) =>
+          if (!opt.isEmpty)
+            (opt.get._1, opt.get._2)
+          else
+            (Double.NaN, false)
+      }
+    val nwapte = tpin.
+      aggregateMessages[Seq[((Double, Boolean), Seq[Double])]](ctx =>
+      direction match {
+        case EdgeDirection.Both =>
+          ctx.sendToDst(Seq((ctx.srcAttr, ctx.attr)))
+          ctx.sendToSrc(Seq((ctx.dstAttr, ctx.attr)))
+        case EdgeDirection.In =>
+          ctx.sendToDst(Seq((ctx.srcAttr, ctx.attr)))
+        case EdgeDirection.Out =>
+          ctx.sendToSrc(Seq((ctx.dstAttr, ctx.attr)))
+      }, _ ++ _).
+      map { case (vid, list) =>
+        val totalWeight2 = list.map(_._2(0)).sum
+        val wapte = list.map { case ((cur_fx, wtbz), weightList) => cur_fx * weightList(0) / totalWeight2 }.sum
+        //annotation of david:分别代表融合因子:低分企业数量,异常占比,,NAIS,NAWIS
+        (vid, wapte)
+      }
+    val degreesRDD = tpin.degrees.cache()
+    val triCountGraph = tpin.triangleCount()
+    val maxTrisGraph = degreesRDD.mapValues(d => d * (d - 1) / 2.0)
+    val clusterCoef = triCountGraph.vertices.innerJoin(maxTrisGraph) {
+      case (vertexId, triCount, maxTris) =>
+        if (maxTris == 0) 0 else triCount / maxTris
+    }
+    val neighborCount = influTpin.
+      outerJoinVertices(_getScore()) {
+        case (vid, attr, opt) =>
+          if (!opt.isEmpty)
+            attr.wtbz = opt.get._2
+          else
+            attr.wtbz = false
+          (attr, if (!opt.isEmpty) opt.get._1 else 0D)
+      }.
+      aggregateMessages[Seq[Int]](ctx => {
+      ctx.sendToDst(Seq(
+        if (ctx.attr.kg_bl > 0) 1 else 0,
+        if (ctx.attr.tz_bl > 0) 1 else 0,
+        if (ctx.attr.jy_bl > 0) 1 else 0, 0,
+        if (ctx.attr.il_bl > 0) 1 else 0, 0, 1,
+        if (ctx.srcAttr._1.wtbz) 1 else 0, if (ctx.srcAttr._1.wtbz) 0 else 1,
+        if (ctx.srcAttr._2 > 0.5) 1 else 0, if (ctx.srcAttr._2 <= 0.5) 1 else 0))
+      ctx.sendToSrc(Seq(
+        0,
+        0,
+        0, if (ctx.attr.jy_bl > 0) 1 else 0,
+        0, 1, 0,
+        if (ctx.attr.il_bl > 0) 0 else if (ctx.dstAttr._1.wtbz) 1 else 0,
+        if (ctx.attr.il_bl > 0) 0 else if (ctx.dstAttr._1.wtbz) 0 else 1,
+        if (ctx.attr.il_bl > 0) 0 else if (ctx.dstAttr._2 > 0.5) 1 else 0,
+        if (ctx.attr.il_bl > 0) 0 else if (ctx.dstAttr._2 <= 0.5) 1 else 0)
+      )
+    }, (a, b) => a.zip(b).map { case (c1, c2) => c1 + c2 })
+
+    val toReturn = tpin.
+      vertices.
+      join(nwapte).join(neighborCount).join(clusterCoef).map { case (vid, ((((pte, wtbz), nwapte), narr), cluster)) =>
+      VNFeature(vid, pte, if (wtbz) 1 else 0, nwapte, narr(0), narr(1), narr(2), narr(3), narr(4), narr(5), narr(6), narr(7), narr(8),
+        narr(9), narr(10), cluster)
+    }.toDF
+    //    val usersDF = spark.read.load("examples/src/main/resources/users.parquet")
+    //    usersDF.select("name", "favorite_color").write.save("namesAndFavColors.parquet")
+    toReturn
   }
 
 }
