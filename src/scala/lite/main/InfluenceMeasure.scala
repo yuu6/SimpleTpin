@@ -2,9 +2,6 @@ package lite.main
 
 import java.math.BigDecimal
 
-import _root_.wwd.entity.impl.InfluEdgeAttr
-import _root_.wwd.entity.impl.InfluVertexAttr
-import _root_.wwd.strategy.impl.VNFeature
 import lite.entity.EdgeAttr
 import lite.entity.impl.{InfluEdgeAttr, InfluVertexAttr}
 import lite.utils.{OracleTools, HdfsTools}

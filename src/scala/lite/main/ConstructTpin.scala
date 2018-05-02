@@ -13,6 +13,9 @@ import org.apache.spark.sql._
   * Created by weiwenda on 2018/4/4.
   */
 object ConstructTpin {
+  def main(args: Array[String]) {
+    println("")
+  }
   val options = Map("url"->Parameters.DataBaseURL,
     "driver"->Parameters.JDBCDriverString,
     "user" -> Parameters.DataBaseUserName,
