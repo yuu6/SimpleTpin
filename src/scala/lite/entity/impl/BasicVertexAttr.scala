@@ -6,7 +6,7 @@ import lite.entity.VertexAttr
   * Created by Administrator on 2016/4/27.
   */
 class BasicVertexAttr(name: String,zjhm: String, var ishuman: Boolean)
-  extends VertexAttr(name,zjhm) with Serializable {
+  extends VertexAttr(name,zjhm) {
 
   var xydj: String = ""
   var xyfz: Int = 0

@@ -9,7 +9,7 @@ class BasicEdgeAttr(var w_control: Double,
                     var w_tz: Double,
                     var w_gd: Double,
                     var w_trade: Double
-                   ) extends EdgeAttr with Serializable {
+                   ) extends EdgeAttr{
   //annotation of david:交易金额、投资金额、税率、税额
   var trade_je: Double = 0.0
   var tz_je: Double = 0.0

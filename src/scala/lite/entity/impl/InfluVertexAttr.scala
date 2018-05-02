@@ -7,7 +7,7 @@ import org.apache.commons.lang3.StringUtils
   * Created by weiwenda on 2017/3/15.
   */
 class InfluVertexAttr(nsrdzdah: Long, name: String)
-  extends BasicVertexAttr(nsrdzdah.toString, name, false) with Serializable {
+  extends BasicVertexAttr(nsrdzdah.toString, name, false) {
   var nsrdzah_lose:Boolean = false
 }
 

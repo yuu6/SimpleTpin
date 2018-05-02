@@ -1,5 +1,5 @@
 package lite.entity
 
-abstract class EdgeAttr {
+abstract class EdgeAttr extends Serializable  {
 
 }

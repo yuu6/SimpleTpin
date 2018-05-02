@@ -7,7 +7,7 @@ import lite.entity.EdgeAttr
 /**
   * Created by weiwenda on 2017/3/15.
   */
-class InfluEdgeAttr extends EdgeAttr with Serializable {
+class InfluEdgeAttr extends EdgeAttr {
     var tz_bl: Double = 0.0
     var jy_bl: Double = 0.0
     var kg_bl: Double = 0.0
