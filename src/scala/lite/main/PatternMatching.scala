@@ -38,19 +38,19 @@ class PatternMatching(@transient
       }
       def reduceMsg(a: Paths, b: Paths): Paths = a ++ b
       val paths = ConstructInfn.getPathGeneric[Paths, BasicEdgeAttr](initGraph, sendPaths, reduceMsg,maxIteratons = maxLength,initLength=1).
-        mapValues(e => e.filter(_.size > 1)).filter(e => e._2.size > 0).map(_._2)
+        mapValues(e => e.filter(_.size > 1)).filter(e => e._2.size > 0).flatMap(_._2)
       HdfsTools.checkDirExist(sc, path)
       paths.repartition(30).saveAsObjectFile(path)
     }
-    sc.objectFile[(Long, Seq[Seq[(graphx.VertexId, Double)]])](path).repartition(30)
+    sc.objectFile[Seq[graphx.VertexId]](path).repartition(30)
   }
   //annotation of david:构建互锁关联交易模式（单向环和双向环），未考虑第三方企业的选择
-  def matchPattern(graph: Graph[BasicVertexAttr, BasicEdgeAttr],savePath:String,length:Int): RDD[Pattern] = {
+  def matchPattern(graph: Graph[BasicVertexAttr, BasicEdgeAttr],length:Int,maxLength:Int=3): RDD[Pattern] = {
     // 从带社团编号的TPIN中提取交易边
     //annotation of david:属性为社团id
     val tradeEdges = graph.edges.filter(_.attr.isTrade()).map(edge => ((edge.srcId, edge.dstId), 1)).cache()
     // 构建路径终点和路径组成的二元组
-    val pathsWithLastVertex = sc.objectFile[scala.Seq[graphx.VertexId]](savePath)
+    val pathsWithLastVertex = _getOrComputePaths(graph,maxLength,suffix = "")
       .filter(_.size<=length)
       .map(e=>(e.last, e)).cache()
 
@@ -90,8 +90,6 @@ object PatternMatching{
     val ci = new ConstructInfn()
     val pm = new PatternMatching(ci.sc,ci.session)
     val tpin = ci.getOrReadTpin(Seq(s"${hdfsDir}/init_vertices", s"${hdfsDir}/init_edges"))
-    pm._getOrComputePaths(tpin,maxLength = 3,suffix)
-    val path = s"${hdfsDir}/control_path${suffix}"
-    pm.matchPattern(tpin,path,3)
+    pm.matchPattern(tpin,3)
   }
 }
