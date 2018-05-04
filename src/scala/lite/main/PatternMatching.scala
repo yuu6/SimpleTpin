@@ -12,20 +12,10 @@ import utils.Parameters
 /**
   * Created by weiwenda on 2018/5/3.
   */
-class PatternMatching(var forceReComputePath: Boolean = false) {
-  @transient
-  var sc: SparkContext = _
-  @transient
-  var session: SparkSession = _
-  initialize()
-
-  def initialize(): Unit = {
-    session = SparkSession
-      .builder
-      .appName(this.getClass.getSimpleName)
-      .getOrCreate()
-    sc = session.sparkContext
-  }
+class PatternMatching(@transient
+                       sc:SparkContext,
+                      @transient
+                       session:SparkSession,var forceReComputePath: Boolean = false) extends Serializable{
   type Path = Seq[VertexId]
   type Paths = Seq[Seq[VertexId]]
   val hdfsDir: String = Parameters.Dir
@@ -97,8 +87,8 @@ object PatternMatching{
   def main(args: Array[String]) {
     val hdfsDir: String = Parameters.Dir
     val suffix = ""
-    val pm = new PatternMatching()
     val ci = new ConstructInfn()
+    val pm = new PatternMatching(ci.sc,ci.session)
     val tpin = ci.getOrReadTpin(Seq(s"${hdfsDir}/init_vertices", s"${hdfsDir}/init_edges"))
     pm._getOrComputePaths(tpin,maxLength = 3,suffix)
     val path = s"${hdfsDir}/control_path${suffix}"
